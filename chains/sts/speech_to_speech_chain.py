@@ -1,4 +1,5 @@
-from typing import Dict, Any, Optional, List
+import asyncio
+from typing import Dict, Any, Optional, List, Callable, Union
 from pydantic import Field
 from langchain.chains.base import Chain
 from langchain.chains import LLMChain
@@ -12,13 +13,15 @@ class SpeechToSpeechChain(Chain):
     llm_chain: LLMChain = Field(...)
     tts_chain: TTSChain = Field(...)
     conversation_history: List[Dict[str, str]] = Field(default_factory=list)
+    callback: Optional[Callable[[str, Union[str, bytes]], None]] = None  # New field for the callback function
 
-    def __init__(self, stt_chain: STTChain, llm_chain: LLMChain, tts_chain: TTSChain):
+    def __init__(self, stt_chain: STTChain, llm_chain: LLMChain, tts_chain: TTSChain, callback: Optional[Callable[[str, Union[str, bytes]], None]] = None):
         super().__init__()
         self.stt_chain = stt_chain
         self.llm_chain = llm_chain
         self.tts_chain = tts_chain
         self.conversation_history = []
+        self.callback = callback
 
     @property
     def input_keys(self) -> List[str]:
@@ -32,6 +35,7 @@ class SpeechToSpeechChain(Chain):
         # STT
         stt_output = self.stt_chain._call({'audio': inputs['audio']})
         transcription = stt_output['transcription']
+        self._invoke_callback('stt', transcription)
         
         # Update conversation history
         self.conversation_history.append({'role': 'user', 'text': transcription})
@@ -43,6 +47,7 @@ class SpeechToSpeechChain(Chain):
         # LLM
         llm_output = self.llm_chain._call({'text': prompt})
         processed_text = llm_output['text']
+        self._invoke_callback('llm', processed_text)
         
         # Update conversation history
         self.conversation_history.append({'role': 'system', 'text': processed_text})
@@ -50,14 +55,15 @@ class SpeechToSpeechChain(Chain):
         # TTS
         tts_output = self.tts_chain._call({'text': processed_text})
         audio_content = tts_output['audio_content']
+        self._invoke_callback('tts', audio_content)
         
         return {'audio_content': audio_content}
-
 
     async def _acall(self, inputs: Dict[str, Any], run_manager: Optional = None) -> Dict[str, Any]:
         # STT
         stt_output = await self.stt_chain._acall({'audio': inputs['audio']})
         transcription = stt_output['transcription']
+        await self._invoke_callback_async('stt', transcription)
         
         # Update conversation history
         self.conversation_history.append({'role': 'user', 'text': transcription})
@@ -69,6 +75,7 @@ class SpeechToSpeechChain(Chain):
         # LLM
         llm_output = await self.llm_chain._acall({'text': prompt})
         processed_text = llm_output['text']
+        await self._invoke_callback_async('llm', processed_text)
         
         # Update conversation history
         self.conversation_history.append({'role': 'system', 'text': processed_text})
@@ -76,6 +83,7 @@ class SpeechToSpeechChain(Chain):
         # TTS
         tts_output = await self.tts_chain._acall({'text': processed_text})
         audio_content = tts_output['audio_content']
+        await self._invoke_callback_async('tts', audio_content)
         
         return {'audio_content': audio_content}
 
@@ -85,3 +93,14 @@ class SpeechToSpeechChain(Chain):
     
     def clear_conversation_history(self):
         self.conversation_history = []
+
+    def _invoke_callback(self, stage: str, data: Any):
+        if self.callback:
+            self.callback(stage, data)
+
+    async def _invoke_callback_async(self, stage: str, data: Any):
+        if self.callback:
+            if asyncio.iscoroutinefunction(self.callback):
+                await self.callback(stage, data)
+            else:
+                self.callback(stage, data)
