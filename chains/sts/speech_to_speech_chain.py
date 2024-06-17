@@ -11,12 +11,14 @@ class SpeechToSpeechChain(Chain):
     stt_chain: STTChain = Field(...)
     llm_chain: LLMChain = Field(...)
     tts_chain: TTSChain = Field(...)
+    conversation_history: List[Dict[str, str]] = Field(default_factory=list)
 
     def __init__(self, stt_chain: STTChain, llm_chain: LLMChain, tts_chain: TTSChain):
         super().__init__()
         self.stt_chain = stt_chain
         self.llm_chain = llm_chain
         self.tts_chain = tts_chain
+        self.conversation_history = []
 
     @property
     def input_keys(self) -> List[str]:
@@ -31,10 +33,19 @@ class SpeechToSpeechChain(Chain):
         stt_output = self.stt_chain._call({'audio': inputs['audio']})
         transcription = stt_output['transcription']
         
+        # Update conversation history
+        self.conversation_history.append({'role': 'user', 'text': transcription})
+        
+        # Prepare conversation context for LLM
+        context = "\n".join([f"{entry['role']}: {entry['text']}" for entry in self.conversation_history])
+        prompt = f"The following is a conversation between a user and an AI assistant. The assistant should maintain context and respond accordingly.\n\n{context}\n\nAI assistant:"
+        
         # LLM
-        llm_output = self.llm_chain._call({'text': transcription})
+        llm_output = self.llm_chain._call({'text': prompt})
         processed_text = llm_output['text']
-        print("hello  ", processed_text)
+        
+        # Update conversation history
+        self.conversation_history.append({'role': 'system', 'text': processed_text})
         
         # TTS
         tts_output = self.tts_chain._call({'text': processed_text})
@@ -42,14 +53,25 @@ class SpeechToSpeechChain(Chain):
         
         return {'audio_content': audio_content}
 
+
     async def _acall(self, inputs: Dict[str, Any], run_manager: Optional = None) -> Dict[str, Any]:
         # STT
         stt_output = await self.stt_chain._acall({'audio': inputs['audio']})
         transcription = stt_output['transcription']
         
+        # Update conversation history
+        self.conversation_history.append({'role': 'user', 'text': transcription})
+        
+        # Prepare conversation context for LLM
+        context = "\n".join([f"{entry['role']}: {entry['text']}" for entry in self.conversation_history])
+        prompt = f"The following is a conversation between a user and an AI assistant. The assistant should maintain context and respond accordingly.\n\n{context}\n\nAI assistant:"
+        
         # LLM
-        llm_output = await self.llm_chain._acall({'text': transcription})
+        llm_output = await self.llm_chain._acall({'text': prompt})
         processed_text = llm_output['text']
+        
+        # Update conversation history
+        self.conversation_history.append({'role': 'system', 'text': processed_text})
         
         # TTS
         tts_output = await self.tts_chain._acall({'text': processed_text})
@@ -60,3 +82,6 @@ class SpeechToSpeechChain(Chain):
     @property
     def _chain_type(self) -> str:
         return "SpeechToSpeechChain"
+    
+    def clear_conversation_history(self):
+        self.conversation_history = []
