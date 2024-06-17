@@ -1,106 +1,105 @@
-import asyncio
-from typing import Dict, Any, Optional, List, Callable, Union
+import requests
+import subprocess
+from typing import AsyncGenerator, Dict, Any, Optional
 from pydantic import Field
-from langchain.chains.base import Chain
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain.llms import OpenAI
-from ..stt.stt_chain import STTChain
-from ..tts.tts_chain import TTSChain
+from .tts_chain import TTSChain
+import aiohttp
 
-class SpeechToSpeechChain(Chain):
-    stt_chain: STTChain = Field(...)
-    llm_chain: LLMChain = Field(...)
-    tts_chain: TTSChain = Field(...)
-    conversation_history: List[Dict[str, str]] = Field(default_factory=list)
-    callback: Optional[Callable[[str, Union[str, bytes]], None]] = None  # New field for the callback function
+class CartesiaTTSChain(TTSChain):
+    """Concrete implementation of TTSChain for Cartesia.ai Text-to-Speech."""
 
-    def __init__(self, stt_chain: STTChain, llm_chain: LLMChain, tts_chain: TTSChain, callback: Optional[Callable[[str, Union[str, bytes]], None]] = None):
+    api_key: str = Field(...)
+    model_id: str = Field(...)
+    voice_id: str = Field(...)
+
+    def __init__(self, api_key: str, model_id: str, voice_id: str):
         super().__init__()
-        self.stt_chain = stt_chain
-        self.llm_chain = llm_chain
-        self.tts_chain = tts_chain
-        self.conversation_history = []
-        self.callback = callback
+        self.api_key = api_key
+        self.model_id = model_id
+        self.voice_id = voice_id
 
-    @property
-    def input_keys(self) -> List[str]:
-        return ['audio']
+    def generate_audio(self, text: str) -> bytes:
+        url = "https://api.cartesia.ai/tts/bytes"
+        headers = {
+            "Cartesia-Version": "2024-06-10",
+            "X-API-Key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "transcript": text,
+            "model_id": self.model_id,
+            "voice": {
+                "mode": "id",
+                "id": self.voice_id
+            },
+            "output_format": {
+                "container": "raw",
+                "encoding": "pcm_s16le",
+                "sample_rate": 16000
+            }
+        }
 
-    @property
-    def output_keys(self) -> List[str]:
-        return ['audio_content']
+        response = requests.post(url, headers=headers, json=payload, stream=False)
+
+        if response.status_code == 200:
+            chunks = []
+            chunk_size = 1024 * 1024  # 1MB chunk size for better performance
+
+            for chunk in response.iter_content(chunk_size=chunk_size):
+               if chunk:
+                   chunks.append(chunk)
+
+            audio_data = b"".join(chunks)
+
+            with subprocess.Popen(
+                ["ffmpeg", "-f", "s16le", "-ar", "16000", "-i", "pipe:0", "-f", "wav", "pipe:1"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE
+            ) as process:
+                audio_content, _ = process.communicate(audio_data)
+
+            return audio_content
+        else:
+            raise Exception(f"Failed to get TTS audio: {response.status_code}, {response.text}")
+        
+    async def generate_audio_async(self, text: str):
+        url = "https://api.cartesia.ai/tts/bytes"
+        headers = {
+            "Cartesia-Version": "2024-06-10",
+            "X-API-Key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "transcript": text,
+            "model_id": self.model_id,
+            "voice": {
+                "mode": "id",
+                "id": self.voice_id
+            },
+            "output_format": {
+                "container": "raw",
+                "encoding": "pcm_s16le",
+                "sample_rate": 16000
+            }
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    chunk_size = 4096
+
+                    async for chunk in response.content.iter_chunked(n=chunk_size):
+                        if chunk:
+                            yield chunk
+                else:
+                    error_message = await response.text()
+                    raise Exception(f"Failed to get TTS audio: {response.status}, {error_message}")
 
     def _call(self, inputs: Dict[str, Any], run_manager: Optional = None) -> Dict[str, Any]:
-        # STT
-        stt_output = self.stt_chain._call({'audio': inputs['audio']})
-        transcription = stt_output['transcription']
-        self._invoke_callback('stt', transcription)
-        
-        # Update conversation history
-        self.conversation_history.append({'role': 'user', 'text': transcription})
-        
-        # Prepare conversation context for LLM
-        context = "\n".join([f"{entry['role']}: {entry['text']}" for entry in self.conversation_history])
-        prompt = f"The following is a conversation between a user and an AI assistant. The assistant should maintain context and respond accordingly.\n\n{context}\n\nAI assistant:"
-        
-        # LLM
-        llm_output = self.llm_chain._call({'text': prompt})
-        processed_text = llm_output['text']
-        self._invoke_callback('llm', processed_text)
-        
-        # Update conversation history
-        self.conversation_history.append({'role': 'system', 'text': processed_text})
-        
-        # TTS
-        tts_output = self.tts_chain._call({'text': processed_text})
-        audio_content = tts_output['audio_content']
-        self._invoke_callback('tts', audio_content)
-        
+        text = inputs['text']
+        audio_content = self.generate_audio(text)
         return {'audio_content': audio_content}
 
-    async def _acall(self, inputs: Dict[str, Any], run_manager: Optional = None) -> Dict[str, Any]:
-        # STT
-        stt_output = await self.stt_chain._acall({'audio': inputs['audio']})
-        transcription = stt_output['transcription']
-        await self._invoke_callback_async('stt', transcription)
-        
-        # Update conversation history
-        self.conversation_history.append({'role': 'user', 'text': transcription})
-        
-        # Prepare conversation context for LLM
-        context = "\n".join([f"{entry['role']}: {entry['text']}" for entry in self.conversation_history])
-        prompt = f"The following is a conversation between a user and an AI assistant. The assistant should maintain context and respond accordingly.\n\n{context}\n\nAI assistant:"
-        
-        # LLM
-        llm_output = await self.llm_chain._acall({'text': prompt})
-        processed_text = llm_output['text']
-        await self._invoke_callback_async('llm', processed_text)
-        
-        # Update conversation history
-        self.conversation_history.append({'role': 'system', 'text': processed_text})
-        
-        # TTS
-        tts_output = await self.tts_chain._acall({'text': processed_text})
-        audio_content = tts_output['audio_content']
-        await self._invoke_callback_async('tts', audio_content)
-        
-        return {'audio_content': audio_content}
-
-    @property
-    def _chain_type(self) -> str:
-        return "SpeechToSpeechChain"
-    
-    def clear_conversation_history(self):
-        self.conversation_history = []
-
-    def _invoke_callback(self, stage: str, data: Any):
-        if self.callback:
-            self.callback(stage, data)
-
-    async def _invoke_callback_async(self, stage: str, data: Any):
-        if self.callback:
-            if asyncio.iscoroutinefunction(self.callback):
-                await self.callback(stage, data)
-            else:
-                self.callback(stage, data)
+    async def _acall(self, inputs: Dict[str, Any], run_manager: Optional = None) -> AsyncGenerator[Dict[str, Any], None]:
+        text = inputs['text']
+        async for chunk in self.generate_audio_async(text):
+            yield {'audio_content': chunk}
