@@ -35,3 +35,4 @@ class STTChain(Chain, ABC):
     @property
     def _chain_type(self) -> str:
         return "STTChain"
+

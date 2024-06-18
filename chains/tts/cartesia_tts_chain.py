@@ -103,3 +103,12 @@ class CartesiaTTSChain(TTSChain):
         text = inputs['text']
         async for chunk in self.generate_audio_async(text):
             yield {'audio_content': chunk}
+
+        # text = inputs['text']
+        # async for chunk in self.generate_audio_async(text):
+        #     with subprocess.Popen(
+        #         ["ffmpeg", "-f", "s16le", "-ar", "16000", "-i", "pipe:0", "-f", "wav", "pipe:1"],
+        #         stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        #     ) as process:
+        #         audio_content, _ = process.communicate(chunk)
+        #     yield {'audio_content': audio_content}
