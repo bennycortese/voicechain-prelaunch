@@ -9,7 +9,6 @@ if __name__ == "__main__":
 
     api_key = os.getenv("ELEVEN_LABS_API_KEY")
     voice_id = os.getenv("ELEVEN_LABS_VOICE_ID")
-    print(api_key)
         
     tts_chain = ElevenLabsTTSChain(api_key=api_key, voice_id=voice_id)
 
