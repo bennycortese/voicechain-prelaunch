@@ -17,13 +17,25 @@ class ElevenLabsTTSChain(TTSChain):
         self.voice_id = voice_id
         self.client = ElevenLabs(api_key=self.api_key)
 
-    def generate_audio(self, text: str) -> bytes:
-        audio_content = self.client.generate(
-            text=text,
-            voice=self.voice_id,
-        )
+    def generate_audio(self, text: str) -> Optional[bytes]:
+        try:
+            audio_content = self.client.generate(
+                text=text,
+                voice=self.voice_id,
+            )
+            return audio_content
+        except Exception as e:
+            print(f"Failed to generate audio: {e}")
+            return None
 
-        return audio_content
+    def save_audio(self, audio: bytes, file_path: str) -> bool:
+        try:
+            save(audio, file_path)
+            return True
+        except Exception as e:
+            print(f"Failed to save audio: {e}")
+            return False
+
 
     async def generate_audio_async(self, text: str) -> AsyncGenerator[bytes, None]:
         async for audio_chunk in self.client.generate_async(

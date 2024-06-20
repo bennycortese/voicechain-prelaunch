@@ -9,6 +9,11 @@ class TTSChain(Chain, ABC):
     def generate_audio(self, text: str) -> bytes:
         """Generates audio bytes from the given text."""
         pass
+    
+    @abstractmethod
+    def save_audio(self, audio: bytes, file_path: str) -> None:
+        """Saves audio bytes based on a certain encoding"""
+        pass
 
     @property
     def input_keys(self) -> List[str]:
