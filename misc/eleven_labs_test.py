@@ -9,11 +9,7 @@ if __name__ == "__main__":
 
     api_key = os.getenv("ELEVEN_LABS_API_KEY")
     voice_id = os.getenv("ELEVEN_LABS_VOICE_ID")
-<<<<<<< HEAD
-=======
-    print(api_key)
->>>>>>> 6ece4e0 (tts/tts_chain.py)
-        
+    
     tts_chain = ElevenLabsTTSChain(api_key=api_key, voice_id=voice_id)
 
     text_to_speech = "I like pineapple pizza!"
