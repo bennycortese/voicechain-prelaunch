@@ -7,13 +7,12 @@ import asyncio
 class GoogleTTSChain(TTSChain):
     """Concrete implementation of TTSChain for Google Text-to-Speech."""
 
-    api_key: str = Field(...)
+    api_key_json_path: str = Field(...)
     client: Optional[texttospeech.TextToSpeechClient] = None
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key_json_path: str):
         super().__init__()
-        self.api_key = api_key
-        self.client = texttospeech.TextToSpeechClient.from_service_account_file(api_key)
+        self.client = texttospeech.TextToSpeechClient.from_service_account_file(filename=api_key_json_path)
 
     def generate_audio(self, text: str) -> Optional[bytes]:
         try:
