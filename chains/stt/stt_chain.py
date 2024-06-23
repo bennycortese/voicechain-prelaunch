@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from langchain.chains.base import Chain
 
+# figure out a webrtc method if possible or import
 class STTChain(Chain, ABC):
     """Abstract base class for Speech-to-Text chains."""
     
