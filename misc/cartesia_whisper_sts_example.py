@@ -4,14 +4,18 @@ from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from chains.sts.speech_to_speech_chain import SpeechToSpeechChain
+from dotenv import load_dotenv
+import os
 
 if __name__ == "__main__":
 
-    openai_api_key = ""
-    cartesia_api_key = ""
-    stt_model_id = ""
-    tts_model_id = ""
-    tts_voice_id = ""
+    load_dotenv()
+
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    cartesia_api_key = os.getenv("CARTESIA_API_KEY")
+    stt_model_id = "whisper-1"
+    tts_model_id = "upbeat-moon"
+    tts_voice_id = "a0e99841-438c-4a64-b679-ae501e7d6091"
     
     # Initialize STT Chain
     stt_chain = WhisperSTTChain(api_key=openai_api_key, model_id=stt_model_id)
