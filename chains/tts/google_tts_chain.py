@@ -12,7 +12,8 @@ class GoogleTTSChain(TTSChain):
 
     def __init__(self, api_key_json_path: str):
         super().__init__()
-        self.client = texttospeech.TextToSpeechClient.from_service_account_file(filename=api_key_json_path)
+        self.api_key_json_path = api_key_json_path
+        self.client = texttospeech.TextToSpeechClient.from_service_account_file(filename=self.api_key_json_path)
 
     def generate_audio(self, text: str) -> Optional[bytes]:
         try:
