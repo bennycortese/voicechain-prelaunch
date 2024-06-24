@@ -3,8 +3,6 @@ from typing import Dict, Any, Optional, List, Callable, Union
 from pydantic import Field
 from langchain.chains.base import Chain
 from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain.llms import OpenAI
 from ..stt.stt_chain import STTChain
 from ..tts.tts_chain import TTSChain
 
@@ -13,7 +11,7 @@ class SpeechToSpeechChain(Chain):
     llm_chain: LLMChain = Field(...)
     tts_chain: TTSChain = Field(...)
     conversation_history: List[Dict[str, str]] = Field(default_factory=list)
-    callback: Optional[Callable[[str, Union[str, bytes]], None]] = None  # New field for the callback function
+    callback: Optional[Callable[[str, Union[str, bytes]], None]] = None
 
     def __init__(self, stt_chain: STTChain, llm_chain: LLMChain, tts_chain: TTSChain, callback: Optional[Callable[[str, Union[str, bytes]], None]] = None):
         super().__init__()
@@ -55,6 +53,9 @@ class SpeechToSpeechChain(Chain):
         # TTS
         tts_output = self.tts_chain._call({'text': processed_text})
         audio_content = tts_output['audio_content']
+        if audio_content is None:
+            print("TTS output is None")  # Debug logging
+            raise ValueError("Audio content is None.")
         self._invoke_callback('tts', audio_content)
         
         return {'audio_content': audio_content}
@@ -81,9 +82,14 @@ class SpeechToSpeechChain(Chain):
         self.conversation_history.append({'role': 'system', 'text': processed_text})
         
         # TTS
+        audio_content = b''
         async for tts_output in self.tts_chain._acall({'text': processed_text}):
-            audio_content = tts_output['audio_content']
-            await self._invoke_callback_async('tts', audio_content)
+            audio_content += tts_output['audio_content']
+            await self._invoke_callback_async('tts', tts_output['audio_content'])
+        
+        if not audio_content:
+            print("TTS async output is empty")  # Debug logging
+            raise ValueError("Audio content is empty.")
         
         return {'audio_content': audio_content}
 
