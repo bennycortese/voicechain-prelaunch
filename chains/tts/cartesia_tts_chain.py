@@ -104,6 +104,13 @@ class CartesiaTTSChain(TTSChain):
         async for chunk in self.generate_audio_async(text):
             yield {'audio_content': chunk}
 
+    def save_audio(self, audio: bytes, file_path: str) -> None:
+        try:
+            with open(file_path, "wb") as out:
+                out.write(audio)
+        except Exception as e:
+            raise Exception(f"Failed to save audio: {e}")
+
         # text = inputs['text']
         # async for chunk in self.generate_audio_async(text):
         #     with subprocess.Popen(
