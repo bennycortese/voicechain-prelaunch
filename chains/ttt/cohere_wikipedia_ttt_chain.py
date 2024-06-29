@@ -1,5 +1,6 @@
 from langchain_cohere import CohereRagRetriever, ChatCohere
 from langchain.retrievers import WikipediaRetriever
+# let me get an interface to make this use pydantic
 
 class CohereWikipediaTTTChain:
     def __init__(self, api_key: str):
