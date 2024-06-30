@@ -1,7 +1,7 @@
 🎤🔗 VoiceChain
 ✨ Building innovative applications with voice models through seamless integration ✨
 
-Quick Install - Coming soon!
+Quick Install - Coming soon with this pip setup!
 
 ```
 pip install voicechain
