@@ -2,6 +2,7 @@ from langchain_cohere import CohereRagRetriever, ChatCohere
 from langchain.retrievers import WikipediaRetriever
 # let me get an interface to make this use pydantic
 
+# what are other good mvps,?
 class CohereWikipediaTTTChain:
     def __init__(self, api_key: str):
         self.cohere_chat_model = ChatCohere(api_key=api_key)
