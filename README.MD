@@ -3,6 +3,8 @@
 
 Quick Install - Coming soon with this pip setup!
 
+Note - understand Vocode and see if this could be like a langchain alternative
+
 ```
 pip install voicechain
 ```
